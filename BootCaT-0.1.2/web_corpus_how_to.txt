@@ -1,0 +1,306 @@
+A QUICK GUIDE TO BUILDING YOUR OWN SPECIALIZED CORPUS FROM THE WEB
+
+NB: in this handout, I sometimes present a command split on more than
+one line to make it more readable -- but you should always type
+commands as a single line!
+
+THE BASIC PROCEDURE
+-------------------
+
+1) Choose seeds/keywords
+
+2) Build n-tuples from seeds
+
+3) Use n-tuples as Google or Yahoo! queries and retrieve urls
+
+4) Fetch corresponding pages and build corpus
+
+(Optional iteration phase not presented here:
+
+5) Identify typical words in corpus by frequency comparison with
+   general corpus
+
+6) Using typical words as new seeds, re-start from 2)
+
+End of optional iteration phase)
+
+7) POS-tag the corpus
+
+8) Index with CWB
+
+Typically, you can access documentation about the programs that perform
+the procedure with:
+
+program_name -h | more
+
+or
+
+perldoc program_name
+
+or
+
+man program_name
+
+
+SEED SELECTION
+---------------
+
+Put seeds in a file with one seed per line (multi-word seeds are ok),
+e.g.:
+
+dog
+Fido
+food hygiene
+leash
+breeds
+
+
+N-TUPLE CONSTRUCTION
+--------------------
+
+E.g.:
+
+build_random_tuples.pl -n3 -l10 seeds > tuples
+
+-n number of terms in tuple (default: 3).
+
+-l number of tuples (default: 10).
+
+Seeds are sampled with replacement (i.e., one term can occur in more
+than one tuple), but two tuples cannot be identical or permutations of
+each other (i.e., have the same terms). Thus, program will not run
+with parameters that would force it to repeat a tuple.
+
+Given that terms are picked randomly, each run of the program will
+produce different tuples from the same input.
+
+Longer tuples may lead to higher quality, but lower quantity, and vice
+versa.
+
+The program inserts quotes around multi-word seeds, or it leaves the
+quotes if they are already there, i.e., both:
+
+food hygiene
+
+and
+
+"food hygiene"
+
+will be treated as:
+
+"food hygiene"
+
+The "deep recursion" warnings that are often produced by the program
+can be ignored.
+
+
+GOOGLE OR YAHOO! QUERY
+----------------------
+
+collect_urls_from_google.pl -k YOUR_GOOGLE_KEY -l Language -c 10 tuples
+> url_list
+
+Or:
+
+collect_urls_from_yahoo.pl --k YOUR_YAHOO_KEY -l language -c 10 tuples
+> url_list
+
+
+-k google or Yahoo! API key (Yahoo! key optional)
+
+-l language: German, Spanish, Italian, English... (default: no
+ language filter)
+
+-c maximum number of pages to retrieve per tuple, with a likely
+ quality/quantity trade-off (default: 10 pages)
+
+Supported languages:
+
+collect_urls_from_google -n | more
+
+collect_urls_from_yahoo.pl -n | more
+
+Output:
+
+CURRENT_QUERY seed3 seed12 seed4
+http://www.blah.net/blah.htm
+http://www.bluhnet.com/bluh.htm
+...
+CURRENT_QUERY seed7 seed3 seed10
+http://www.blah.net/blah.htm
+http://www.blih.org/umpa.htm
+...
+CURRENT QUERY_ seed25 seed4 seed9
+NO_RESULTS_FOUND
+
+
+Remove duplicates and meta-information:
+
+grep -v CURRENT_QUERY url_list | grep -v NO_RESULTS_FOUND | sort |
+uniq > cleaned_url_list
+
+
+PAGE DOWNLOAD/CORPUS CONSTRUCTION
+---------------------------------
+
+retrieve_and_clean_pages_from_url_list.pl -g ~/shared_data/frequent.en.words
+cleaned_url_list > corpus.txt
+
+If the url list is long, this will take some time. It might be a good
+idea to run it like this:
+
+nohup retrieve_and_clean_pages_from_url_list.pl 
+-g ~/shared_data/frequent.en.words cleaned_url_list > corpus.txt &
+
+In this way, you get the terminal prompt back, and you can even close
+the terminal, leaving the process to run in the background. You can
+periodically check that it's doing OK with
+
+ps x
+
+or
+
+top
+
+or looking at how the file corpus.txt is growing (e.g., with more or
+wc).
+
+retrieve_and_clean_pages_from_url_list.pl is a new (and thus nearly
+untested) program that tries to remove "boilerplate" (navigation
+information, lists, links, etc.) from the retrieved pages, and
+performs other kinds of filtering.
+
+With the option -g you pass a list of frequent words in the relevant
+language. The program will then filter out pages that do not contain a
+minimum number/proportion of words from this list (the rationale being
+that if a page supposed to be in language x does not contain a hefty
+proportion of very frequent -- function -- words from the language,
+either the page is not really in language x, or it is not truly
+connected text). It is not mandatory to pass such list, but it should
+help in reducing the amount of "junk" in the corpus.
+
+Find out more about other options that can be passed to
+retrieve_and_clean_pages_from_url_list.pl and about how it works by
+typing:
+
+perldoc retrieve_and_clean_pages_from_url_list.pl
+perldoc PotaModule
+
+If you also want to retrieve and process "doc" and pdf files, use:
+
+retrieve_and_process_non_html.pl -pd -m 100000 
+-g ~/shared_data/frequent.en.words  cleaned_url_list > non_html.txt
+
+For more information, type:
+
+retrieve_and_process_non_html.pl -h | more
+
+If you are specifically interested in pdf files, you can try to harvest
+more of them with:
+
+sed 's/$/ filetype:pdf/' tuples > tuples.for.pdf
+
+collect_urls_from_google.pl -k YOUR_GOOGLE_KEY -l Language -c 10
+tuples.for.pdf > url_list.for.pdf
+
+(I have no idea of whether this also works for Yahoo!)
+
+grep -v CURRENT_QUERY url_list.for.pdf | grep -v NO_RESULTS_FOUND |
+sort | uniq > cleaned_url_list.for.pdf
+
+retrieve_and_process_non_html.pl -p -m 5000
+-g ~/shared_data/frequent.en.words cleaned_url_list.for.pdf > corpus.pdf.txt
+
+At this point, if you created several sub-corpora, you can put them
+together with cat, e.g.:
+
+cat corpus.txt non_html.txt > corpus.expanded.txt
+
+Notice that collecting both html and pdf docs can lead you to
+harvesting lots of duplicates (and the html docs themselves will
+sometimes be duplicated).
+
+To remove identical documents from the collection, you can do:
+
+discard_duplicates.pl -d "CURRENT URL" corpus.expanded.txt 
+				> corpus.expanded.nodup.txt
+
+It is a good idea to do this in any case. Unfortunately, it will only
+take care of perfect duplicates.  We have some tools to deal with
+near-duplicate detection, but that goes beyond the scope of this
+how-to: ask us if you are interested!
+
+
+OPTIONAL ITERATION STEP
+-----------------------
+
+At this point, if you started with many tuples and/or if you found
+many results with your tuples, you've got a corpus of decent size
+(where what counts as "decent" depends on what you intend to do with
+it). However, if it looks like you need more data, a possible solution
+is to use the corpus collected up to this point to extract a larger
+set of seeds, and repeat the whole procedure with this larger set of
+seeds (of course, you could then collect more seeds from the new
+corpus, build yet another corpus, and so on and so forth for as many
+times as wished...) I will not describe the tools that facilitate this
+process here, but ask me if you are interested.
+
+
+POS-TAGGING
+-----------
+
+As long as your corpus is in English, Italian, German or French, and
+the TreeTagger for the relevant language is installed on your
+computer, this is straightforward:
+
+tagwrapper.pl -l en -d "CURRENT URL" corpus.txt > corpus.tgd
+
+Problems, if any, will derive from special symbols in the input that
+the tagger does not like, and must probably be solved on a case by
+case basis, with sed & co.
+
+Output will be in format ready to be indexed:
+
+<corpus>
+<text id="http://blah.blah.com/blah.html">
+<s>
+The DET the
+dogs N dog
+...
+</s>
+...
+</text>
+...
+</corpus>
+
+For more info on the tag wrapper, type:
+
+tagwrapper.pl -h | more
+
+
+INDEXING
+--------
+
+Given the previous step, indexing with CWB is trivial. For example:
+
+cwbify_standard_corpus.pl -l en -d /home/me/corpus_work/en_fashion_data
+   -n "English corpus to study the language of the fashion industry"
+   -c EN-FASHION corpus.tgd
+
+The option -l specifies the language (en, de, it, etc.).
+
+The option -d must specify the FULL path (i.e., the path from the root
+/) to a not-yet-existing directory, that will be created by the
+script, and where CWB will store the files with the encoded corpus.
+
+The option -n is used to pass a descriptive name to remember what the
+corpus is about.
+
+The option -c is used to provide the short name that CWB will use for
+the corpus (must be a single, upper case string).
+
+Finally, the script takes a corpus in the format created by
+tagwrapper.pl as its input (corpus.tgd in this example).
+
+Notice that after you indexed a corpus, and you checked that CWB is
+handling it properly, you can probably throw away the tagged file.

@@ -1,0 +1,899 @@
+
+                       The BootCaT Toolkit
+
+Simple Utilities for Bootstrapping Corpora and Terms from the Web
+=================================================================
+
+                           version 0.1.2
+
+                        Copyright (c) 2003
+                Marco Baroni (baroni@sslmit.unibo.it)
+              Silvia Bernardini (silvia@sslmit.unibo.it)
+  	     	    
+	http://sslmit.unibo.it/~baroni/tools_and_resources.html
+
+
+Despite certain obvious drawbacks (e.g. lack of control, sampling,
+documentation etc.), there is no doubt that the WWW is a mine of
+language data of unprecedented richness and ease of access.
+
+It is also the only viable source of ``disposable'' corpora (Varantola
+2003) built ad hoc for a specific purpose (e.g. a translation or
+interpreting task, the compilation of a terminological database,
+domain-specific machine learning tasks). These corpora are essential
+resources for language professionals who routinely work with
+specialized languages, often in areas where neologisms and new terms
+are introduced at a fast pace and where standard reference corpora
+have to be complemented by easy-to-construct, focused, up-to-date text
+collections.
+
+While it is possible to construct a web-based corpus through manual
+queries and downloads, this process is extremely time-consuming. The
+time investment is particularly unjustified if the final result is
+meant to be a single-use corpus.
+
+The perl scripts included in the BootCaT toolkit implement an
+iterative procedure to bootstrap specialized corpora and terms from
+the web, requiring only a list of ``seeds'' (terms that are expected
+to be typical of the domain of interest) as input.
+
+In implementing the algorithm, we followed the old UNIX adage that
+each program should do only one thing, but do it well. Thus, we
+developed a small, independent tool for each separate subtask of the
+algorithm.
+
+As a result, BootCaT is extremely modular: One can easily run a subset
+of the programs, look at intermediate output files, add new tools to
+the suite, or change one program without having to worry about the
+others.
+
+Once you install the scripts, documentation about each of them
+(including usage and explanation of command line options) is available
+by typing:
+
+name_of_the_program.pl -h
+
+Sometimes, perldoc documentation is also available by typing:
+
+perldoc name_of_the_program.pl
+
+This document describes installation, it provides a high level
+description of the procedure to create corpora and extract terms, it
+presents an example of how the scripts can be used with detailed
+comments and it provides licensing information.
+
+
+INSTALLATION
+============
+
+We have used the scripts on computers running the Linux and Mac OS X
+operating systems with perl v.5.8.0. We have no reason to believe that
+they would not run on other OSs of the UNIX family (including cygwin),
+whereas there could be problems on Windows, since some of the scripts
+call UNIX text utilities such as cat (if you try, e.g. under cygwin,
+and you have problems, please let us know). Here, we assume that you
+are using the scripts on the UNIX command line.
+
+After you download the archive, decompress it by typing the following
+command at the prompt:
+
+tar xvzf BootCaT-0.1.tar.gz
+
+This will generate a BootCaT-0.1 directory, containing this readme
+file, the examples directory and the following scripts:
+
+add1_smoothing.pl
+basic_tokenizer.pl
+build_random_tuples.pl
+collect_mw_terms.pl
+collect_urls_from_google.pl
+connect_bi_connectors.pl
+doc_delimited_uniq.pl
+filter_unigrams.pl
+get_connector_grams.pl
+get_top_percentage.pl
+log_odds_ratio.pl
+print_good_ngrams.pl
+print_pages_from_url_list.pl
+print_rank.pl
+simple_filter.pl
+
+The examples directory contains the output of the experiment we
+describe below.
+
+Move BootCaT-0.1 wherever you want and add its path to the PATH
+variable.
+
+If you use tcsh, add something like the following line to the .tcshrc
+file:
+
+setenv PATH "${PATH}:/home/marco/sw/BootCaT-0.1"
+
+If you use the bash shell, add something like the following line to
+.bashrc:
+
+PATH=$PATH:$HOME/sw/BootCaT-0.1
+
+That's it. You should now be able to run the scripts and to look at
+their documentation from wherever you are, without specifying the
+path to BootCaT.
+
+Some of the modules required by the scripts are not part of the
+standard perl distribution. If, when you run a script, perl complains
+about not being able to locate a certain module in @INC, you will have
+to install it.
+
+If you are lucky, the following will be sufficient to install the
+missing module:
+
+sudo perl -MCPAN -e shell
+cpan> install Name_Of_Module
+...
+cpan> quit
+
+In order to use the script collect_urls_from_google.pl, you will need
+to obtain a Google API key from the Google Web API page:
+
+http://www.google.com/apis
+
+This entitles you to 1000 automated searches per day, for a maximum of
+10000 results. If this is not enough for your purposes, you may
+consider engaging in some ``Google-scraping''. Until now, we never
+needed to retrieve more than 10000 pages per day, and we prefer to use
+the Google API since it should provide a more robust and stable
+interface to the Google engine than the web scraping approach.
+
+
+THE BOOTCAT PROCEDURE
+=====================
+
+The basic idea is very simple: Build a corpus by searching Google
+(http://www.google.com/) for a small set of seed terms, extract new
+(single-word) terms from this corpus, use the latter to build a new
+corpus via a new set of Google queries, extract new terms/seeds from
+this corpus and so forth. The final corpus and unigram term list are
+then used to extract a list of multi-word terms. These are sequences
+of words that must respect a set of constraints on their structure,
+frequency and distribution.
+
+
+Initial seed selection
+----------------------
+
+The bootstrapping process starts with a small list of seeds that are
+expected to be representative of the domain under investigation. The
+initial seed selection can be manual or automated (below, we describe
+an experiment in which we extracted the initial seeds automatically).
+
+We found that, for well-defined specialized domains, a small list of
+seeds (in the 5-to-15 range) is typically sufficient, and we obtained
+interesting results by starting with as little as two seeds.
+
+
+Bootstrap of corpora and single terms
+-------------------------------------
+
+This is the core of the algorithm. The seed terms are randomly
+combined and each combination is used as a Google query string.  The
+top n pages returned for each query are retrieved and formatted as
+text.
+
+New single-word seeds are extracted from the corpus of retrieved pages
+by comparing the frequency of occurrence of each word in this set with
+its frequency of occurrence in a reference corpus. In particular, we
+compare frequencies using the log odds ratio measure (see e.g. Everitt
+1992, 2.8).
+
+We compute the log odds ratio by assuming the following contingency
+table:
+
+                 curr_w=w     curr_w!=w
+ corpus=spec        a            b
+ corpus=ref         c            d
+
+where a is the frequency of a word in the specialized corpus, b is the
+size of the specialized corpus minus a, c is the frequency of the word
+in the general corpus and d is the size of the general corpus minus c.
+
+The odds ratio is given by ad/cb, and the log odds ratio is:
+
+log_odds_ratio = ln(ad/cb) = ln(a) + ln(d) - ln(c) - ln(b)
+
+Since it is almost sure that not all words in the specialized corpus
+will occur in the general corpus, we provide a script to perform add-1
+smoothing (Jurafsky and Martin 2001, 6.3) of the reference
+corpus frequencies.
+
+In future versions of the toolkit, we would like to support other
+statistics, beyond the log odds ratio, and more sophisticated smoothing
+schemes.
+
+We provide frequency lists for English and Italian reference corpora
+from the same site from which BootCaT can be downloaded.
+
+At this point, random combinations of the newly extracted seed terms
+are used for a new round of Google queries and a new corpus is created
+by retrieving and formatting the top n pages found by the search
+engine.
+
+The iterative term extraction / corpus downloading procedure is
+repeated as many times as desired (e.g., until the corpus reaches a
+certain size, or the quality of seeds starts decreasing). In our
+experiments, we rarely found the need to repeat the process more than
+two or three times.
+
+Several important search parameters have to be controlled by the user,
+such as the number of queries to be issued for each iteration, the
+number of seeds combined to build a query, the number of pages to be
+retrieved for each query, etc.
+
+After a corpus has been downloaded, the user must decide whether to
+base the frequency comparison for seed extraction on token
+frequencies, document frequencies or a combination of both.
+
+Once the words are ranked by odds ratio, the user has to decide the
+proportion of words at the top of the list that are to be picked as
+seeds for the next round.
+
+Depending, probably, on the quality of the initial seeds, the user
+will also have to decide whether to keep the corpora and term lists
+extracted during each round, or just the ones constructed during the
+last round.
+
+Until now, we have made this kind of choices on a trial and error
+basis. The modular nature of the toolkit allows one to inspect the
+intermediate results and to experiment with various parameters at each
+stage.
+
+
+Extraction of multi-word terms
+------------------------------
+
+If emphasis is on term extraction, we can use the list of single-word
+terms and the corpus constructed in the previous stage to look for
+multi-word terms.
+
+The first step of this phase is to extract a list of single- and
+two-word connectors from the corpus, by looking for words and bigrams
+that frequently occur between two single-word terms. We also extract a
+list of stop words, which are, simply, words with a very high document
+frequency that are not connectors.
+
+At this point, we can look for multi-word terms, i.e. sequences of
+words that meet the following constraints:
+
+- they have frequency above a certain threshold (dependent on length);
+
+- they contain at least one single-word term;
+
+- they do not contain stop words;
+
+- they may contain connectors, but these cannot occur at the edges nor
+  be adjacent to each other;
+
+- a candidate multi-word term cannot be part of a longer multi-word
+  term with frequency above k*fq, where k is a constant between 0 and
+  1 (but typically much closer to the upper end of the range) and fq
+  is the frequency of the current term; in other words, a multi-word
+  term cannot be part of a longer term with frequency close to its
+  own;
+
+- conversely, a multi-word term cannot contain a shorter multi-word
+  term with frequency above (1/k)*fq.
+
+The multi-word terms are searched recursively. Starting with bigrams,
+we look left and right for a n+1gram term containing the current ngram
+and meeting the constraints we just listed, except the one banning
+edge connectors (otherwise, we would not find longer terms with inner
+connectors). For each seed bigram, the longest well-formed term
+containing it and without edge connectors is returned (this, of
+course, can be the bigram itself).
+
+Again, the user must set various parameters, such as the minimum
+frequency for bigram terms and the value for the constant k (the
+minimum frequency threshold for longer terms will follow from these
+two parameters).
+
+Although we never tried, it would be interesting (and easy) to add a
+filter to keep only bigrams with a high mutual information and/or
+log-likelihood ratio as possible starting points for the recursive
+multi-word term search procedure.
+
+If the relevant resources are available, it could also be useful to
+filter out multi-word terms that do not match certain POS-patterns.
+
+
+Efficiency issues
+-----------------
+
+The whole procedure is implemented in perl, and we did not worry about
+efficiency in the implementation (although we did call efficient
+external command-line tools such as sort wherever possible). This
+means that, if you are using the scripts with huge corpora, you will
+probably run into trouble. We experimented with corpora of about 10M
+words, and we had no efficiency problem (on a G4 running OS X 10.2
+with 768 MB of RAM and a dual 450MHz processor no script took more
+than a few minutes to run).
+
+
+Related work
+-----------
+
+Our corpus construction method is very similar to the one proposed by
+Ghani et al. (2001) for minority language corpora.
+
+The idea of comparing frequencies in specialized and reference corpora
+to look for terms typical of the former is fairly common. See, for
+example, Rayson and Garside (2000).
+
+The multi-word term extraction method has some similarities with the
+ones proposed by Enguehard and Pantera (1995) (in particular, the
+connector idea) and Pantel and Lin (2001) (in particular, the
+recursive multi-word term search).
+
+However, as far as we know, we are the first to propose and implement
+a procedure to construct specialized corpora from the web while at the
+same time extracting terms from the same domain.
+
+
+AN EXAMPLE EXPERIMENT
+=====================
+
+We need to come up with a corpus and a term list to aid a technical
+translator who needs to translate the following psychiatric article:
+
+Fleisher W., D. Staley, P. Krawetz, N. Pillay, J. Arnett,
+J. Maher. 2002. A Comparative Study of Trauma-Related Phenomena in
+Subjects With Pseudoseizures and Subjects With Epilepsy. American
+Journal of Psychiatry 159: 660-663.
+
+
+Initial seed selection
+----------------------
+
+We use as initial seeds all the words in the abstract of the study
+that do not occur in the Brown corpus. In this way, we automatically
+extract the following six seeds:
+
+$ cat seeds 
+dissociative
+epilepsy
+interventions
+posttraumatic
+pseudoseizures
+ptsd
+
+
+Corpus/unigram term bootstrap
+-----------------------------
+
+We form 15 random triplets from the seeds:
+
+$ build_random_tuples.pl -l15 -n3 seeds > triplets
+
+We use the triplets to perform a set of Google searches, asking Google
+to return a maximum of 20 URLs per query, and to look for English
+pages only:
+
+$ collect_urls_from_google.pl -k GOOGLE_API_KEY -l English \
+-c 20 triplets > first_url_list
+$ wc first_url_list
+ 315 360 17988 first_url_list
+
+Many URLS found by the different queries, of course, are duplicates:
+
+$ grep -v "CURRENT_SEED" first_url_list | sort | uniq | wc
+ 181 181 10499
+
+We retrieve a first corpus:
+
+$ grep -v "CURRENT_SEED" first_url_list | sort | uniq |\
+print_pages_from_url_list.pl > first_corpus &
+
+$ wc first_corpus 
+  55542  396308 2748410 first_corpus
+
+We extract token frequencies (basic_tokenizer.pl with the specified
+options removes strings containing characters outside the [a-zA-Z\']
+set, converts the remaining strings to lower case and prints the
+output one word per line):
+
+$ grep -v "CURRENT URL" first_corpus | basic_tokenizer.pl -aei - |\
+sort | uniq -c |gawk '(length($2)>2)&&($1>2){print $2,$1}' > first_fqs
+
+Now, we will compare these frequencies to those in the Brown corpus,
+which we previously collected in the brown_ci_tok_fqs file. This a
+frequency list from the Brown tokenized with all words converted to
+lower case (ci stands for case insensitive).
+
+The script add1_smoothing.pl will produce a list of all the words in
+our specialized frequency list with their frequency in the Brown
+corpus + 1, i.e. if a word has a frequency of 3 in the Brown, its
+output frequency will be 4, if a word did not appear in the Brown list
+(i.e., it had a frequency of 0 there), its output frequency will be 1.
+
+Moreover, with the option -t set the script also prints to STDERR an 
+estimate of the number of words in the *smoothed* Brown, given by the
+sum of all the frequencies in the Brown frequency list + 1 per word +
+the number of words that are in the specialized list but were not in
+the original Brown list.
+
+$ add1_smoothing.pl -t brown_ci_tok_fqs first_fqs
+getting the types in general corpus
+adding one
+estimate of size of smoothed corpus
+1054850
+creating smoothed general corpus fq list for words in specific corpus
+
+The list created by add1_smoothing.pl is called brown_ci_tok_fqs.add1
+
+Sanity check:
+
+$ wc first_fqs brown_ci_tok_fqs.add1    
+   8991   17982  102323 first_fqs
+   8991   17982  103335 brown_ci_tok_fqs.add1
+  17982   35964  205658 total
+
+We align the specialized and Brown corpus frequencies and we compute
+the log odds ratios (notice that the script to compute log odds ratios
+requires the size of the specialized corpus and that of the smoothed
+Brown as input arguments):
+
+$ paste first_fqs brown_ci_tok_fqs.add1 | gawk '{print $1,$2,$4}' |\
+ log_odds_ratio.pl 396308 1054850 - | sort -nrk2 > first_odds
+
+After visual inspection, we decide to take the top 40 words from this
+list as the seeds for the second run:
+
+$ head -40 first_odds | gawk '{print $1}' | sort > second_seeds
+
+Since we have more seeds, we generate more triples:
+
+$ build_random_tuples.pl -l30 -n3 second_seeds > second_triples
+
+And we follow the usual corpus creation steps (since we will also keep
+the first corpus, this time we need to remove the URLs we already
+retrieved from the new URL list):
+
+$ collect_urls_from_google.pl -k GOOGLE_API_KEY -l English \
+-c 20 second_triples > second_url_list
+$ wc second_url_list 
+    594     684   34883 second_url_list
+$ grep -v "CURRENT_SEED" second_url_list | sort | uniq | wc
+    540     540   32367
+$ simple_filter.pl -s first_url_list second_url_list |\
+ grep -v "CURRENT_SEED" | sort | uniq | wc
+    516     516   31017
+$ simple_filter.pl -s first_url_list second_url_list |\
+ grep -v "CURRENT_SEED" | sort | uniq |\
+ print_pages_from_url_list.pl > second_corpus &
+$ wc second_corpus
+ 153804 1126218 7846802 second_corpus
+
+At this point, we feel that we have enough data for our current
+purposes. We put the two corpora together: this is our ``final''
+corpus:
+
+$ cat first_corpus second_corpus > final_corpus
+$ wc final_corpus 
+ 209346 1521736 10595212 final_corpus
+
+
+Extraction of final unigram term list
+-------------------------------------
+
+We will now proceed to select a final set of unigram terms from this
+corpus.
+
+First, we tokenize the final_corpus, printing one word per line. This
+time, since we are also interested in looking for multi-word terms,
+and thus at the context of unigrams, we are more careful with
+tokenization.
+
+In future versions of the toolkit, we would like to add a better
+tokenizer. For the moment, we tokenize the corpus with command-line
+scripts, generating the following output format: one word per line,
+plus lines with CURR_DOC to delimit one original web-page from the
+other (there is one delimiter at the very beginning, but no delimiter
+at the end). Moreover, words or sequences of words that contain
+non-alphabetic characters (except the dash and the apostrophe) are
+replaced by the string _STOP_. Notice also that this time we preserve
+capitalization.
+
+$ perl -ne 'if(/CURRENT URL/){print "CURR_DOC\n";next} \
+ s/\x92/\x27/g; s/^(.)/ _ $1/; s/\s\s/ _ /g; \
+ s/\-\-/\- \-/g; s/[^\s+]+\.[^\s]+/ _ /g; \
+ s/[^a-zA-Z\x27\s0-9\-]+/ _STOP_ /g; \
+ s/([a-z])([A-Z])/$1 $2/g; s/\s+/\n/g; \
+ print' final_corpus | egrep "[A-Za-z]" |\
+ perl -ne 'BEGIN{$seen=0} \
+ if ( /^CURR_DOC/ ) {print; next} if ( /^_STOP_/ ) \
+ {if ($seen==0){$seen=1; print}next;} $seen=0; \
+ s/^[\x27\-]+//g; \
+ s/[\x27\-]+$//g; if (/[A-Za-z]/){print}' > final_tok_corpus
+
+$ wc final_tok_corpus 
+1818804 1818804 12140736 final_tok_corpus
+
+We collect token and document frequencies (to obtain the latter, we
+run the script doc_delimited_uniq.pl, which keeps only one instance of
+a word for each document, so that then we can apply the same procedure
+we use for token frequencies):
+
+$ grep -v _ final_tok_corpus | sort | uniq -c |\
+ gawk '{print $2,$1}' > final_tok_fqs
+$ wc final_tok_fqs
+  71967  143934  814595 final_tok_fqs
+$ grep -v _STOP_ final_tok_corpus |\
+ doc_delimited_uniq.pl "CURR_DOC" - | grep -v "CURR_DOC" |\
+ sort | uniq -c | gawk '{print $2,$1}' > final_doc_fqs
+$ wc final_doc_fqs
+  71967  143934  809084 final_doc_fqs
+
+We compute the log odds ratios:
+
+$ add1_smoothing.pl -t brown_tok_fqs final_tok_fqs
+getting the types in general corpus
+adding one
+estimate of size of smoothed corpus
+1110821
+creating smoothed general corpus fq list for words in specific corpus
+$ wc final_tok_fqs brown_tok_fqs.add1
+  71967  143934  814595 final_tok_fqs
+  71967  143934  809823 brown_tok_fqs.add1
+ 143934  287868 1624418 total
+
+$ paste final_tok_fqs brown_tok_fqs.add1 | gawk '{print $1,$2,$4}' |\
+ log_odds_ratio.pl 1819103 1110821 - | sort -nrk2 > final_tok_odds
+
+Now we do doc fqs:
+
+$ add1_smoothing.pl brown_doc_fqs final_doc_fqs
+getting the types in general corpus
+adding one
+creating smoothed general corpus fq list for words in specific corpus
+
+$ wc brown_doc_fqs.add1 final_doc_fqs 
+  71967  143934  807761 brown_doc_fqs.add1
+  71967  143934  809084 final_doc_fqs
+ 143934  287868 1616845 total
+
+In this case, estimate of smoothed corpus ``size'' (which should be
+the maximum value that the frequency of a word could in principle
+reach) will be given by the number of documents in the original corpus
+plus 1 (if a word occurred in all documents of the original corpus,
+after add-1-smoothing its frequency will be equal to the number of
+documents in the original corpus plus 1). The Brown corpus contains
+500 documents, thus its smoothed size is 501.
+
+For the specialized corpus, the number of documents is:
+
+$ grep CURR_DOC final_tok_corpus | wc
+    533     533    4797
+
+We need to add another 1 to both totals, otherwise words occurring in
+all documents would have 0 counts in the b or d cells of the
+contingency table (see above). This would be a problem since the log
+odds ratio script takes logarithms of these counts.
+
+$ paste final_doc_fqs brown_doc_fqs.add1 | gawk '{print $1,$2,$4}' |\
+ log_odds_ratio.pl 534 502 - | sort -nrk2 > final_doc_odds
+
+This time, we will combine token and document frequencies on the basis
+of their rank.
+
+We combine them in the following simple way: For each word, we compute
+its rank in the list of words ordered by token-frequency-based odds
+ratio and its rank in the list of words ordered by
+document-frequency-based odds ratio. Then, we simply sum the two
+ranks.
+
+For example, if a certain word has the highest odds ratio in the list
+based on token frequency, and the third highest odds ratio in the list
+based on document frequency, its sum-of-ranks will be 1+3=4.
+
+The highest the ranks of a word in the odds ratio lists, the lower the
+value of its sum-of-ranks will be. Thus, the sum-of-ranks list is
+ordered by increasing sum-of-ranks value (a word with a sum-of-ranks
+of 4 is a more likely term than a word with a sum-of-ranks of 400).
+
+Of course, one could experiment with different ways to combine the
+measures, or simply pick one of the two.
+
+$ print_rank.pl -f2 final_tok_odds | gawk '{print $2,$1}' |\
+ sort > final_tok_odd_ranks
+$ print_rank.pl -f2 final_doc_odds | gawk '{print $2,$1}' |\
+ sort > final_doc_odd_ranks
+
+$ paste final_tok_odd_ranks final_doc_odd_ranks |\
+ gawk '{c=$2+$4;print $1,c}' | sort -nk2 > final_combined_odd_ranks
+
+We will pick the top 2.5% from the combination as the final set of our
+unigram terms:
+
+$ get_top_percentage.pl 2.5 final_combined_odd_ranks | gawk '{print $1}' |\
+ sort > candidate_uniterms
+$ wc candidate_uniterms 
+   1800    1800   15619 candidate_uniterms
+
+
+Multi-word term extraction
+--------------------------
+
+Now we start looking for multi-word terms.
+
+First, we need to collect connectors. These are simply one- and
+two-word sequences that often occur between two unigram terms.
+
+Here, we look at type frequency: We count the number of distinct *term
+frames* in which each potential connector occurs. Token frequency is
+only taken into account in that if a term+connector+term sequence did
+not occur at least three times in the corpus, it is not counted.
+
+For unigrams, we keep the top 5% as potential connectors, for bigrams
+we keep the top 2.5%.
+
+$ get_connector_grams.pl 3 candidate_uniterms final_tok_corpus |\
+ grep -v _ | sort | uniq -c |\
+ perl -ane 'if ($F[0]>2){print $F[2];print "\n";}' | sort | uniq -c |\
+ gawk '{print $2,$1}' |  sort -nrk2 | get_top_percentage.pl 5 - |\
+ gawk '{print $1}' | sort > uni_connectors
+$ get_connector_grams.pl 4 candidate_uniterms final_tok_corpus |\
+ grep -v _ | sort | uniq -c |\
+ perl -ane 'if ($F[0]>2){print join " ",@F[2...($#F-1)];print "\n";}' |\
+ sort | uniq -c | gawk '{print $2,$3,$1}' | sort -nrk3 |\
+ get_top_percentage.pl 2.5 - | gawk '{print $1,$2}' |\
+ sort > bi_connectors
+
+$ wc *connectors
+     11      22     103 bi_connectors
+     13      13      61 uni_connectors
+     24      35     164 total
+
+These are the two lists:
+
+[einstein ~/web_and_terms/data] baroni$ cat uni_connectors
+J
+and
+for
+from
+in
+of
+on
+or
+personality
+status
+stress
+to
+with
+
+[einstein ~/web_and_terms/data] baroni$ cat bi_connectors
+In Your
+Professor of
+and Other
+and other
+characterized by
+in the
+is a
+of a
+of the
+to the
+veterans with
+
+As you can see, they are rather noisy. One could manually intervene to
+remove bad connectors such as *personality* or *veterans with*. However,
+inspection of the final output in various experiments suggests that
+bad connectors tend to disappear from the final multi-word term
+lists anyway.
+
+The simplest way to deal with bigram connectors is to treat them as
+unigrams. We re-tokenize the corpus replacing each bigram connector
+with a single token created by joining the two parts with an
+underscore (of the -> of_the):
+
+$ connect_bi_connectors.pl bi_connectors final_tok_corpus \
+ > final_bitok_corpus  
+$ wc final_*tok_corpus
+1801315 1801315 12140736 final_bitok_corpus
+1818804 1818804 12140736 final_tok_corpus
+3620119 3620119 24281472 total
+
+We build a stop word list with words that have a high document
+frequency in the Brown corpus and are not unigram terms nor connectors
+(we could probably also use the specialized corpus for the same
+purpose):
+
+$ sort candidate_uniterms uni_connectors > keep_list
+$ sort -nrk2 brown_doc_fqs | filter_unigrams.pl -s keep_list - |\
+ get_top_percentage.pl 1 - | gawk '{print $1}' | sort > stop_words
+
+We add the token _STOP_ to this list (recall that in the tokenized
+specialized corpus strings that contain non-alphabetic characters
+except the dash and the apostrophe were replaced by _STOP_):
+
+$ echo "_STOP_" >> stop_words 
+$ wc stop_words 
+    556     556    3274 stop_words
+
+OK, now we have the basic ingredients to collect ngrams.
+
+Let us get all the up_to_5_grams that contain at least one candidate
+term and no stop word (one could of course consider longer ngrams as
+well):
+
+$  gawk \
+ '/CURR_DOC/{print "_STOP_"} $0 !~/CURR_DOC/{print}' \
+ final_bitok_corpus |\
+ print_good_ngrams.pl 5 stop_words candidate_uniterms - | sort |\
+ uniq -c | perl -ane '$fq = shift @F; print join(" ",@F); \
+ print " $fq\n";' > all_grams
+$ wc all_grams 
+ 227361  985245 6250546 all_grams
+
+Notice that, when the relevant resources are available, one can use
+POS-pattern matching to filter the lists of connectors, stop words and
+ngrams.
+
+Next, we extract all the bigrams from the previous list, we sort them
+and we preserve the top 5%:
+
+$ gawk '(NF==3){print}' all_grams | sort -nrk3 |\
+ get_top_percentage.pl 5 - > top_bigrams
+$ wc top_bigrams 
+   3158    9474   56989 top_bigrams
+
+An interesting alternative to absolute frequency would be to pick
+bigrams using mutual information or log-likelihood.
+
+Now, we will use these bigrams as the seeds in the recursive procedure
+to look for multi-word terms.
+
+We start with the shortest ngrams (bigrams) and we expand each of them
+towards the left and the right until we find the longest ngram that
+has no connectors at the edge and which has a frequency equal to or
+above k*component_fq, where component_fq is the frequency of the most
+frequent n_minus_1_gram composing it.
+
+Notice that the lowest frequency items in the bigram list have a
+frequency of 10:
+
+$ tail -1 top_bigrams 
+AC splits 10
+
+As we just said, for each ngram (from 3grams up), the minimum
+acceptable frequency must be equal to k times the frequency of any of
+the n-1grams (read: n minus 1 grams) composing it. Thus, the minimum
+frequency of a 2+ngram is equal to 2gram_fq*k^n (e.g., the minimum
+frequency for a 3gram containing a certain 2gram is 2gram_fq*k^1; for
+a 4gram it is 2gram_fq*k^2, and so on).
+
+The longest ngram we collected is a 5gram, i.e., a 2+3gram. Thus, its
+minimum frequency is min_2gram_fq*k^3. Given that the minimum
+frequency for the 2grams is 10 and that it is unlikely that we will
+consider k's below .75, the minimum frequency for a 5gram will be:
+10*.75^3, i.e. 4.22, i.e., since we work with integers, 5.
+
+Thus, we can trim all ngrams with frequency below 5 (we could even
+trim on the basis of min_bigram_fq*k^n for each 2+ngram category, but
+since we do not have efficiency problems with the current
+setting we'll save ourselves the effort of doing this).
+
+$  gawk '(NF>3){print}' all_grams |\
+ perl -ane 'if ($F[$#F]>4){print}' > top_morethanbi_grams
+$ wc top_morethanbi_grams 
+   4382   19282  119946 top_morethanbi_grams
+
+Finally, we can get the multi-word terms!
+
+$ perl -ne 's/ /_/;print' uni_connectors bi_connectors |\
+ collect_mw_terms.pl .75 - top_morethanbi_grams top_bigrams |\
+ sort  > mw_terms 
+$ wc mw_terms
+   1507    3271   26554 mw_terms
+
+The output term lists (candidate_uniterms and mw_terms), and the list
+of all the URLs retrieved to build the final corpus (final_urls) are
+available in the BootCaT archive, inside the examples directory.
+
+
+Evaluation
+----------
+
+Evaluating the performance of an unsupervised algorithm is always
+hard, since we cannot use part of the training data for testing
+purposes. In this case, the situation is further complicated by the
+inherent difficulty of estimating precision (is a certain web-page or
+term a hit or a miss?), and the impossibility of estimating recall
+(have we obtained an exhaustive list of all the terms/web-pages
+pertaining to a given domain?)
+
+A few simple attempts at quantitative evaluation have however proved
+encouraging:
+
+a) We manually extracted all the terms from the article on
+pseudoseizures quoted above and checked the number of these terms also
+present in the automatically-generated unigram term list created by
+BootCaT. 38 out of 43 terms were indeed present in the BootCaT list
+(88.3%).
+
+b) The same procedure applied to multi-word terms showed that 11 out
+of 29 terms were present (37.9%). A search through the corpus
+retrieved 9 more terms (31%). The remaining 9 terms were not present
+in either the corpus or the term list. However, a search for their
+component single terms showed that at least one word from each
+multi-term was present in the corpus, and in general this was enough
+to understand the term as a whole. For instance, the term ``sleep
+dysfunction'' was not attested in the corpus, which however included
+122 occurrences of ``dysfunction'', with, among its immediate
+left-hand collocates, ``behavioral'', ``anatomic'', ``family'',
+``sexual'', ``lobe'' etc.
+
+c) Lastly, 100 randomly selected multi-word terms were extracted from
+the BootCaT list and classified according to their well-formedness and
+relevance. Of these, 10 were incomplete or badly-formed (e.g. ``Can
+epilepsy'', ``Psychiatry October''), 4 belonged to internet jargon
+(e.g. ``Synergy cookie'', ``browser settings''), 13 were proper names
+(e.g. ``Harden CL''), 32 were general medical terms (e.g. ``clinical
+symptoms'', ``Environmental health'') and 41 were technical medical
+terms in the field of psychiatry (e.g. ``abuse survivors'',
+``clinically significant distress''), for a total of 73 ``bona fide''
+terms over 100.
+
+However, we also believe that the ultimate criterion to evaluate these
+tools is the extent to which the intended users find them useful, and
+prefer them to manual procedures.
+
+In this perspective, we are currently collecting reports from trainee
+translators and terminologists about their experience with the BootCaT
+tools. While these reports do not provide quantitative assessments, we
+believe they can be extremely instructive to assess the performance of
+the tools in realistic settings.
+
+For example, the trainee-translator who worked with us on extracting
+English and Italian corpora of psychiatric articles about the
+phenomenon of pseudoseizures found that the automatically generated
+corpora contained nearly all the pages that she had previously
+identified via manual searches, and about 50% more pages that seemed
+to be, in the overwhelming majority of cases, relevant to the topic.
+
+
+LICENSING INFORMATION
+=====================
+
+The BootCaT scripts are free software. You can redistribute them
+and/or modify them under the same terms as Perl itself.
+
+If you publish work based on the BootCaT tools, please quote Baroni
+and Bernardini (2004).
+
+
+REFERENCES
+==========
+
+Baroni, M. and S. Bernardini. 2004. BootCaT: Bootstrapping corpora and
+terms from the web. Proceedings of LREC 2004.
+
+Enguehard, C. and L. Pantera. 1995. Automatic natural acquisition of
+bilingual terminology. Journal of Quantitative Linguistics 2: 27-32
+
+B. Everitt. 1992. The analysis of contingency tables. Second
+edition. London: Chapman and Hall.
+
+Ghani, R., R. Jones and D. Mladenic. 2001. Mining the Web to Create
+Minority Language Corpora. CIKM 2001: 279-286
+
+Jurafsky, D. and J. Martin. 2000. Speech and language processing: An
+Introduction to Natural Language Processing, Computational
+Linguistics, and Speech Recognition. Upper Saddle River:
+Prentice-Hall.
+
+Pantel, P. and D. Lin. 2001. A Statistical Corpus-Based Term
+Extractor. Proceedings of AI 2001.
+
+P. Rayson and Garside, R. 2000. Comparing corpora using frequency
+profiling. Proceedings of Workshop on Comparing Corpora of ACL 2000:
+1-6.
+
+Varantola, K. 2003. Translators and disposable corpora. In
+F. Zanettin, S. Bernardini and D. Stewart (eds.) Corpora in translator
+education. Manchester: StJerome: 55-70

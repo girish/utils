@@ -1,0 +1,18 @@
+#!/usr/bin/perl -w
+
+while (<>) {
+    @chars = split '';
+    $currline = "";
+    foreach $c (@chars) {
+
+	if ( ( (ord($c) > 64) && (ord($c) < 91) ) ||
+	     ( (ord($c) > 191) && (ord($c) < 215) ) ||
+	     ( (ord($c) > 215) && (ord($c) < 223) ) ) {
+	    $c =chr(ord($c)+32);
+	}
+	    
+	$currline .= $c;
+    }
+    print $currline;
+}
+
