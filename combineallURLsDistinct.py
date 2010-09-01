@@ -8,9 +8,9 @@ import codecs
 inputdir= sys.argv[1]
 #Input directory containing all the urls in json format
 
-outputfile= codecs.open(sys.argv[2], "w", "utf-8")
 
 files= commands.getoutput("find %s -type f" %(inputdir)).split("\n")
+outputfile= codecs.open(sys.argv[2], "w", "utf-8")
 
 allURLS= {}
 for file in files:

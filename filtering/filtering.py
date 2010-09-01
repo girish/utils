@@ -57,9 +57,9 @@ for file in files:
     #print word_count, size
     #print (word_count+0.0)/size
     if tot_words > 0:
-   	 if (len(distinct_words.keys()) >= count_types) and (word_count+0.0)/tot_words >= count_ratio:
-        	os.system("cp %s %s" %(file, destDir))
-         
+        if (len(distinct_words.keys()) >= count_types) and (word_count+0.0)/tot_words >= count_ratio:
+            os.system("cp %s %s" %(file, destDir))
+
     if tot_words > 0:
-    	print len(distinct_words.keys()), (word_count+0.0)/tot_words, file
+        print len(distinct_words.keys()), (word_count+0.0)/tot_words, file
     f.close()

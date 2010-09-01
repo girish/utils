@@ -8,8 +8,9 @@ frequent_words= {}
 f= open(sys.argv[1], "r")
 for word in f.readlines():
     #print word
-    word= word.strip().split()[0]
-    frequent_words[word] = 1
+    if word.strip():
+        word= word.strip().split()[0]
+        frequent_words[word] = 1
 
 #pprint(frequent_words)
 

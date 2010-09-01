@@ -61,7 +61,7 @@ if __name__=="__main__":
 	#print word
         #.decode("utf-8", 'ignore')
         #if len(unicode_word) > 5 and re.search(pattern, word)==None:
-        if re.search(pattern1, word)==None and re.search(pattern2, word)==None:
+        if re.search(pattern1, word)==None and re.search(pattern2, word)!=None:
             f.write("%s\t%d\t%d\n" %(word, count, total[word]))
 	#if re.search(u"[^\uAC00-\uD7A3]",word)==None:
          #   unicode_word= word.decode("utf-8", "replace")

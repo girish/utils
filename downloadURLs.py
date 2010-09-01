@@ -5,7 +5,7 @@ import sys
 import re
 
 inputUrllist= open(sys.argv[1]).readlines()
-outputDir= sys.argv[1]+"_dir"
+outputDir= sys.argv[1].replace('urls','html_data')+"_dir"
 url_file= open(sys.argv[1]+"_info","w")
 if not os.path.isdir(outputDir):
     os.system("mkdir %s" %(outputDir))

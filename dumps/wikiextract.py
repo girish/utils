@@ -26,23 +26,33 @@ def findXMLIterator(path):
 files = commands.getoutput("find %s -type f | grep '\.xml' " %(sys.argv[1])).split("\n")
 dirs= commands.getoutput("find %s -type d" %(sys.argv[1])).split("\n")
 
-if not os.path.exists("out_%s" %(sys.argv[1])):
-	os.mkdir("out_%s" %(sys.argv[1]))
+
+
+if not os.path.exists(sys.argv[1].replace('xml','txt')):
+    os.mkdir(sys.argv[1].replace('xml','txt'))
+for dir in dirs[1:-1]:
+    path=dir.replace('xml','txt')
+    print path
+    if not os.path.exists(path):
+        os.mkdir(path)
+"""
+if not os.path.exists(sys.argv[2]):
+	os.mkdir(sys.argv[2])
 	for dir in dirs:
-	        path= os.path.join("out_%s" %(sys.argv[1]), dir)
+	        path= os.path.join(sys.argv[2], dir)
 	        if not os.path.exists(path):
 	            os.mkdir(path)
+"""
 								
-
 # Extract the words from all the files in the subdirectories
 #for xmlfile in findXMLIterator(sys.argv[1]):
 for xmlfile in files:
-    print xmlfile
     try:
-	filename= os.path.join("out_%s" %(sys.argv[1]), xmlfile)
-	output= open(filename, "w")
+        print xmlfile
+        filename= xmlfile.replace(".xml", ".txt").replace('_xml','_txt')
+        output= open(filename, "w")
         output.write(wikisoup.extractWikipediaText(xmlfile).encode("UTF-8"))
-	output.close()
+        output.close()
     except:
-	continue;
-        #raise
+        continue;
+    #raise
