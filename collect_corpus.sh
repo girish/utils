@@ -20,6 +20,28 @@ function corpus_init(){
 	mkdir -p languages/$1/corpus_filtered
 	mkdir -p languages/$1/tmp
 }
+corpus_dld(){
+  if [ -z "$1" ] 
+  then
+    echo "Missing argument: give language as first argument"
+    return 1
+  fi
+  if [ -z "$2" ] 
+  then
+    echo "Missing argument: give language code as second argument eg: enwiki"
+    echo "Language codes are iso 639-1 codes"
+    return 1
+  fi
+  feed_url="http://download.wikimedia.org/$2/latest/$2-latest-pages-articles.xml.bz2-rss.xml"
+  latest_dump_date=`curl $feed_url | grep link | head -1 | perl -nle 'print /(\d+)/'`
+  echo $latest_dump_date
+  dump_link="http://download.wikimedia.org/$2/${latest_dump_date}/$2-${latest_dump_date}-pages-articles.xml.bz2"
+  echo $dump_link
+  wget $dump_link -P languages/$1/wiki_src
+  bzip2 -d languages/$1/wiki_src/*
+
+}
+
 
 ###################################
 #download wiki and move it to languages/$1/wiki_src/
