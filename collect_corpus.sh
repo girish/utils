@@ -33,7 +33,7 @@ corpus_dld(){
     return 1
   fi
   feed_url="http://download.wikimedia.org/$2/latest/$2-latest-pages-articles.xml.bz2-rss.xml"
-  latest_dump_date=`curl $feed_url | grep link | head -1 | perl -nle 'print /(\d+)/'`
+  latest_dump_date=`wget -q -O - $feed_url | grep link | head -1 | perl -nle 'print /(\d+)/'`
   echo $latest_dump_date
   dump_link="http://download.wikimedia.org/$2/${latest_dump_date}/$2-${latest_dump_date}-pages-articles.xml.bz2"
   echo $dump_link
