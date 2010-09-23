@@ -17,6 +17,7 @@ bing = Bing('773ABCCFE034C503D0E9DE0FD0B88F06D6815214');
 #This apid is dedicated to this program.
 
 countryCode= sys.argv[3]
+language = sys.argv[3]
 
 queries= open(inputfile).readlines()
 
@@ -28,8 +29,10 @@ scores= {}
 
 for query in queries:
     query= query.strip()
+    query ="%s language:%s"%(query,language)
     print query
-    info= bing.search(query, countryCode)
+    #info= bing.search(query, countryCode)
+    info= bing.search(query)
     scores[query]= info['SearchResponse']['Web']['Total']
     print scores[query]
     

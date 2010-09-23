@@ -19,6 +19,7 @@ appid= sys.argv[3]
 bing = Bing(sys.argv[3]);
 
 countryCode= sys.argv[4]
+language= sys.argv[4]
 queries= open(inputfile).readlines()
 
 if len(queries) > 10000:
@@ -29,9 +30,11 @@ results= {}
 
 for query in queries:
     query= query.strip()
+    query = "%s language:%s"%(query,language)
     print query
     try:
-    	info= bing.search(query, countryCode)
+    	#info= bing.search(query, countryCode)
+    	info= bing.search(query)
     except:
         print 'some error'
     
