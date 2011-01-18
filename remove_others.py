@@ -7,6 +7,6 @@ start=u"\u0B80"
 end=u"\u0BFF"
 range="[^%s-%s\s,.\d]"%(start,end)
 filestring=re.sub(range,'', filestring)
-filestring=re.sub('\d{5,}','', filestring)
+filestring=re.sub('\d{6,}','', filestring)
 sys.stdout.write(filestring.encode('UTF-8'))
 

@@ -15,7 +15,7 @@ $deduper = new Text::DeDuper(
     encoding => 'utf8'
 );
 
-$max_buffer_size= 200;
+$max_buffer_size= 450;
 
 @no_near_duplicates=() ;
 %duplicates= () ;

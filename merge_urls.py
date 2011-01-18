@@ -4,7 +4,7 @@ import sys
 "languages/korea/corpus_filtered/languages-korea-urls-final_list_part_0.txt_dir-1125.txt"
 "languages/serbia/corpus_filtered/languages-serbia-urls-combined_part02_dir-3621.txt"
 "languages/serbia/html_data/combined_part09_dir/20.html"
-files = open('languages/%s/data/files.non_duplicates_sor'%(sys.argv[1]),'r').xreadlines()
+files = open('languages/%s/data/files.non_duplicates.sor'%(sys.argv[1]),'r').xreadlines()
 ifile=0
 index_prefix_prev=0
 file_hash={}
